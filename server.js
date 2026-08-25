@@ -41,6 +41,8 @@ const DEFAULT_STATE = {
   found: false,                // true => shiny sprite + celebration
   target: null,                // optional target count / goal
   theme: 'dark',               // overlay theme: 'dark' | 'light'
+  held: [],                    // parked hunts you can resume later
+  caught: [],                  // completed shinies (newest first)
   updatedAt: 0,
 };
 
@@ -123,6 +125,37 @@ setInterval(() => {
 // ---------------------------------------------------------------------------
 function clampCount(n) { return Math.max(0, Math.round(n)); }
 
+// ----- On-hold hunts (a parking lot you can swap in and out of) -----
+let idSeq = 0;
+function newId() { return nowMs().toString(36) + '-' + (idSeq++).toString(36); }
+
+// snapshot the active hunt into a portable object for the on-hold list
+function snapshotCurrent() {
+  return {
+    id: newId(),
+    pokemon: state.pokemon, displayName: state.displayName, method: state.method, game: state.game,
+    count: state.count, phaseCount: state.phaseCount, phases: state.phases,
+    gen: state.gen, shinyCharm: state.shinyCharm, masuda: state.masuda, customOdds: state.customOdds,
+  };
+}
+// load a held hunt back into the active slot
+function loadHunt(h) {
+  state.pokemon = h.pokemon || ''; state.displayName = h.displayName || '';
+  state.method = h.method || 'Random Encounter'; state.game = h.game || '';
+  state.count = clampCount(h.count || 0); state.phaseCount = clampCount(h.phaseCount || 0); state.phases = clampCount(h.phases || 0);
+  state.gen = h.gen || 8; state.shinyCharm = !!h.shinyCharm; state.masuda = !!h.masuda;
+  state.customOdds = (h.customOdds === undefined ? null : h.customOdds);
+  state.found = false;
+}
+// clear the active slot to a fresh hunt (keeps how you hunt: method / gen / charm / masuda)
+function loadFresh() {
+  state.pokemon = ''; state.displayName = ''; state.game = '';
+  state.count = 0; state.phaseCount = 0; state.phases = 0; state.found = false; state.customOdds = null;
+}
+function huntHasProgress() {
+  return !!((state.pokemon && String(state.pokemon).trim()) || state.count > 0 || state.phases > 0);
+}
+
 const actions = {
   increment(q) {
     const by = Number(q.by) || 1;
@@ -159,6 +192,32 @@ const actions = {
   },
   toggleTheme() {
     state.theme = state.theme === 'light' ? 'dark' : 'light';
+  },
+  // Park the active hunt in the on-hold list, then clear the slot for a new one.
+  hold() {
+    if (!huntHasProgress()) return;      // nothing meaningful to park
+    state.held.push(snapshotCurrent());
+    loadFresh();
+  },
+  // Swap a held hunt back into the active slot; auto-park the current one so it's not lost.
+  resume(q) {
+    const idx = state.held.findIndex((h) => String(h.id) === String(q.id));
+    if (idx === -1) return;
+    const hunt = state.held.splice(idx, 1)[0];
+    if (huntHasProgress()) state.held.push(snapshotCurrent());
+    loadHunt(hunt);
+  },
+  removeHeld(q) {
+    state.held = state.held.filter((h) => String(h.id) !== String(q.id));
+  },
+  // Mark the current hunt done — archive it to Previous Shinies, clear the slot.
+  complete() {
+    if (!huntHasProgress()) return;
+    state.caught.unshift(snapshotCurrent());   // newest first
+    loadFresh();
+  },
+  removeCaught(q) {
+    state.caught = state.caught.filter((c) => String(c.id) !== String(q.id));
   },
   config(q) {
     const strFields = ['pokemon', 'displayName', 'method', 'game'];

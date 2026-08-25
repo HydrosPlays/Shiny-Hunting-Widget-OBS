@@ -49,11 +49,10 @@
   #stage.align-topleft { justify-content: flex-start; align-items: flex-start; }
   #stage.align-topright{ justify-content: flex-end;   align-items: flex-start; }
 
+  #col { width: 468px; transform: scale(var(--scale)); transform-origin: bottom left; display: flex; flex-direction: column; gap: 10px; }
   #card {
     position: relative;
-    width: 468px;
-    transform: scale(var(--scale));
-    transform-origin: bottom left;
+    width: 100%;
     border: 4px solid var(--edge);
     border-radius: 28px;
     overflow: hidden;
@@ -184,6 +183,17 @@
     100% { transform: translateY(-175px) scale(1.15) rotate(160deg); opacity: 0; }
   }
 
+  /* Latest-shiny box under the card — same width, thinner */
+  #shinies { width: 100%; border: 3px solid var(--edge); border-radius: 18px; overflow: hidden; background: var(--paper); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  #shinies.hidden { display: none; }
+  .shinies-head { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); padding: 8px 16px 2px; }
+  .shiny-row { display: flex; align-items: center; gap: 11px; padding: 4px 16px 9px; }
+  .shiny-ico { width: 34px; height: 34px; object-fit: contain; image-rendering: pixelated; flex: 0 0 auto; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+  .shiny-info { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 2px; overflow: hidden; }
+  .shiny-name { font-size: 16px; font-weight: 700; color: var(--text); white-space: nowrap; }
+  .shiny-game { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .shiny-count { margin-left: auto; padding-left: 10px; font-size: 16px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+
   #conn { position: fixed; top: 8px; right: 10px; font-size: 11px; color: #ff6b6b; background: rgba(0,0,0,.55); padding: 3px 8px; border-radius: 6px; display: none; }
 </style>
 </head>
@@ -191,7 +201,8 @@
   <div id="conn">⚠ waiting for server…</div>
 
   <div id="stage" class="align-left">
-    <div id="card">
+    <div id="col">
+      <div id="card">
       <div class="header">
         <div class="title">
           <span class="dexno" id="dexno">No. 0000</span>
@@ -215,6 +226,15 @@
           <span id="phasePill" class="hidden">Phase 0</span>
         </div>
       </div>
+      </div>
+      <div id="shinies" class="hidden">
+        <div class="shinies-head">✦ Latest Shiny</div>
+        <div class="shiny-row">
+          <img id="shinyIco" class="shiny-ico" alt="" />
+          <span class="shiny-info"><span id="shinyName" class="shiny-name">—</span><span id="shinyGame" class="shiny-game"></span></span>
+          <span id="shinyCount" class="shiny-count">0</span>
+        </div>
+      </div>
     </div>
   </div>
   <div id="sparkles"></div>
@@ -233,6 +253,7 @@
   const revealMode = params.get('reveal') === '1';
   const themeOverride = params.get('theme');          // 'dark'/'light' forces it; else follow control panel
   const statMode = params.get('stat') === 'chance' ? 'chance' : 'odds';  // 'odds' = % of odds (can exceed 100%)
+  const showShinies = params.get('shinies') !== '0';   // latest previous shiny box under the card
 
   const stage = document.getElementById('stage');
   stage.className = 'align-' + align;
@@ -275,7 +296,7 @@
     '<rect x="4" y="44" width="88" height="8" fill="#111"/>' +
     '<circle cx="48" cy="48" r="13" fill="#fff" stroke="#111" stroke-width="4"/></svg>');
 
-  let lastCount = null, lastKey = null, lastFound = false;
+  let lastCount = null, lastKey = null, lastFound = false, shinyIcoKey = null;
   const cache = {};
 
   function hexToRgba(hex, a) {
@@ -383,6 +404,25 @@
     const wantShiny = revealMode ? s.found : true;
     const key = (s.pokemon || '') + '|' + (wantShiny ? 'shiny' : 'normal');
     if (key !== lastKey) { lastKey = key; applyPokemon(s.pokemon, wantShiny); }
+
+    // Latest previous shiny (newest only)
+    if (showShinies) {
+      const latest = (s.caught && s.caught[0]) || null;
+      const box = document.getElementById('shinies');
+      if (!latest) { box.classList.add('hidden'); shinyIcoKey = null; }
+      else {
+        box.classList.remove('hidden');
+        document.getElementById('shinyName').textContent = latest.displayName || latest.pokemon || '—';
+        document.getElementById('shinyGame').textContent = latest.game ? (' · ' + latest.game) : '';
+        document.getElementById('shinyCount').textContent = Number(latest.count || 0).toLocaleString();
+        if (latest.id !== shinyIcoKey) {
+          shinyIcoKey = latest.id;
+          const ico = document.getElementById('shinyIco');
+          ico.src = (cache[latest.pokemon] && cache[latest.pokemon].shiny) || POKEBALL;
+          if (latest.pokemon) fetchPokemon(latest.pokemon).then((e) => { ico.src = e.shiny || POKEBALL; }).catch(() => { ico.src = POKEBALL; });
+        }
+      }
+    }
   }
 
   function burst() {

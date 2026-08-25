@@ -97,6 +97,31 @@
   .seg button { font-family:inherit; font-size:13px; font-weight:600; color:var(--muted); background:transparent; border:0; border-radius:8px; padding:7px 14px; cursor:pointer; transition:.15s; }
   .seg button.on { background:var(--type1); color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.35); }
 
+  /* ---- Hold + On-hold list ---- */
+  .hold-btn { margin-top:12px; width:100%; font-family:inherit; font-weight:700; font-size:13.5px; color:var(--text);
+    background:var(--input); border:1px solid var(--line); border-radius:11px; padding:12px; cursor:pointer; transition:.15s; }
+  .hold-btn:hover { border-color:var(--type1); color:#fff; background:var(--type1); }
+  .hunt-actions { display:flex; gap:10px; margin-top:12px; }
+  .hunt-actions .hold-btn { margin-top:0; flex:1; }
+  .done-btn { flex:1; font-family:inherit; font-weight:700; font-size:13.5px; color:#fff; cursor:pointer;
+    background:linear-gradient(180deg,#e0a52a,#b9831a); border:1px solid var(--gold); border-radius:11px; padding:12px; transition:.15s; }
+  .done-btn:hover { filter:brightness(1.08); }
+  .done-btn:active { transform:translateY(1px); }
+  #heldCount, #caughtCount { color:var(--type1); }
+  .held-list { display:flex; flex-direction:column; gap:9px; }
+  .held-item { display:flex; align-items:center; gap:11px; background:var(--input); border:1px solid var(--line); border-radius:12px; padding:8px 10px; }
+  .held-sprite { width:46px; height:46px; object-fit:contain; image-rendering:pixelated; flex:0 0 auto; }
+  .held-info { flex:1 1 auto; min-width:0; }
+  .held-name { font-size:14px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .held-meta { font-size:11.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .held-resume { font-family:inherit; font-weight:700; font-size:12.5px; color:#fff; cursor:pointer; flex:0 0 auto;
+    background:linear-gradient(180deg,#37b26b,#248a4f); border:1px solid #3fbf74; border-radius:9px; padding:8px 15px; }
+  .held-resume:active { transform:translateY(1px); }
+  .held-del { font-family:inherit; font-size:16px; line-height:1; color:var(--muted); cursor:pointer; flex:0 0 auto;
+    background:transparent; border:1px solid var(--line); border-radius:9px; width:32px; height:32px; }
+  .held-del:hover { color:#fff; background:var(--accent); border-color:var(--accent); }
+  .held-empty { font-size:12.5px; color:var(--muted); line-height:1.5; }
+
   /* ---- Actions ---- */
   .actions { display:grid; grid-template-columns:repeat(2,1fr); gap:11px; }
   @media (min-width:560px){ .actions { grid-template-columns:repeat(4,1fr); } }
@@ -176,6 +201,24 @@
             <button data-theme="dark" id="tDark">🌙 Dark</button>
           </div>
         </div>
+        <div class="hunt-actions">
+          <button class="hold-btn" id="holdBtn">⏸ Hold</button>
+          <button class="done-btn" id="doneBtn">✓ Complete — caught!</button>
+        </div>
+      </section>
+
+      <!-- On hold -->
+      <section class="screen">
+        <h2>On Hold <span id="heldCount">(0)</span></h2>
+        <div id="heldList" class="held-list"></div>
+        <div id="heldEmpty" class="held-empty">No hunts on hold. Hit <b>Hold</b> to park the current hunt and start another — resume any of them anytime.</div>
+      </section>
+
+      <!-- Previous shinies -->
+      <section class="screen">
+        <h2>Previous Shinies <span id="caughtCount">(0)</span></h2>
+        <div id="caughtList" class="held-list"></div>
+        <div id="caughtEmpty" class="held-empty">No shinies logged yet. Hit <b>Complete</b> when you catch one to add it here.</div>
       </section>
 
       <!-- Actions -->
@@ -286,7 +329,7 @@
   const POKEBALL = 'data:image/svg+xml;utf8,' + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="44" fill="#f5f5f5" stroke="#111" stroke-width="4"/><path d="M4 48a44 44 0 0 1 88 0z" fill="#ee2b3b" stroke="#111" stroke-width="4"/><rect x="4" y="44" width="88" height="8" fill="#111"/><circle cx="48" cy="48" r="13" fill="#fff" stroke="#111" stroke-width="4"/></svg>');
 
-  let lastPokemon = null, formSeeded = false;
+  let lastPokemon = null, lastFormSig = null, heldSig = null, caughtSig = null;
   const cache = {};
 
   function hexToRgba(hex, a) {
@@ -308,6 +351,11 @@
   document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', async () => {
     try { await fetch(base + '/api/config?theme=' + b.dataset.theme, { method:'POST' }); } catch (_) {}
   }));
+
+  // park the current hunt
+  $('holdBtn').addEventListener('click', () => fetch(base + '/api/hold', { method: 'POST' }).catch(() => {}));
+  // complete the current hunt -> Previous Shinies
+  $('doneBtn').addEventListener('click', () => fetch(base + '/api/complete', { method: 'POST' }).catch(() => {}));
 
   document.addEventListener('keydown', (e) => {
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
@@ -337,22 +385,83 @@
     types.forEach((tn) => { const b = document.createElement('span'); b.className='badge'; b.textContent=tn; b.style.background=TYPE_COLORS[tn]||'#888'; $('types').appendChild(b); });
   }
 
+  async function getEntry(pokemon) {
+    const key = String(pokemon).toLowerCase();
+    if (cache[key]) return cache[key];
+    const r = await fetch('https://pokeapi.co/api/v2/pokemon/' + encodeURIComponent(key));
+    const d = await r.json();
+    const g = d.sprites.versions?.['generation-v']?.['black-white']?.animated;
+    const e = { id:d.id, types:(d.types||[]).map(t=>t.type.name),
+      shiny: g?.front_shiny || d.sprites.other?.['official-artwork']?.front_shiny || d.sprites.other?.home?.front_shiny || d.sprites.front_shiny || g?.front_default || POKEBALL };
+    cache[key] = e;
+    return e;
+  }
   async function loadPokemon(pokemon) {
     if (!pokemon) { $('sprite').src = POKEBALL; $('dexno').textContent=''; applyType([]); return; }
     try {
-      let e = cache[pokemon];
-      if (!e) {
-        const r = await fetch('https://pokeapi.co/api/v2/pokemon/' + encodeURIComponent(String(pokemon).toLowerCase()));
-        const d = await r.json();
-        const g = d.sprites.versions?.['generation-v']?.['black-white']?.animated;
-        e = { id:d.id, types:(d.types||[]).map(t=>t.type.name),
-          shiny: g?.front_shiny || d.sprites.other?.['official-artwork']?.front_shiny || d.sprites.other?.home?.front_shiny || d.sprites.front_shiny || g?.front_default };
-        cache[pokemon] = e;
-      }
+      const e = await getEntry(pokemon);
       $('sprite').src = e.shiny || POKEBALL;
       $('dexno').textContent = 'No. ' + String(e.id).padStart(4,'0');
       applyType(e.types);
     } catch (_) { $('sprite').src = POKEBALL; $('dexno').textContent=''; applyType([]); }
+  }
+
+  function heldLabel(method) {
+    const m = (method||'').toLowerCase();
+    return m.includes('reset') ? 'SR' : (m.includes('egg')||m.includes('masuda')||m.includes('hatch')) ? 'eggs' : 'enc.';
+  }
+  function renderHeld(held) {
+    held = held || [];
+    $('heldCount').textContent = '(' + held.length + ')';
+    $('heldEmpty').style.display = held.length ? 'none' : 'block';
+    const sig = held.map(h => h.id + ':' + h.count).join('|');   // rebuild only when the list changes (avoids gif flicker)
+    if (sig === heldSig) return;
+    heldSig = sig;
+    const list = $('heldList');
+    list.innerHTML = '';
+    held.forEach((h) => {
+      const item = document.createElement('div'); item.className = 'held-item';
+      const img = document.createElement('img'); img.className = 'held-sprite'; img.alt = '';
+      img.src = (cache[String(h.pokemon).toLowerCase()] || {}).shiny || POKEBALL;
+      if (h.pokemon) getEntry(h.pokemon).then((e) => { img.src = e.shiny || POKEBALL; }).catch(() => {});
+      const info = document.createElement('div'); info.className = 'held-info';
+      const nm = document.createElement('div'); nm.className = 'held-name'; nm.textContent = h.displayName || h.pokemon || '—';
+      const meta = document.createElement('div'); meta.className = 'held-meta';
+      meta.textContent = Number(h.count || 0).toLocaleString() + ' ' + heldLabel(h.method) + (h.game ? ' · ' + h.game : '');
+      info.append(nm, meta);
+      const resume = document.createElement('button'); resume.className = 'held-resume'; resume.textContent = 'Resume';
+      resume.addEventListener('click', () => fetch(base + '/api/resume?id=' + encodeURIComponent(h.id), { method: 'POST' }));
+      const del = document.createElement('button'); del.className = 'held-del'; del.textContent = '×'; del.title = 'Remove hunt';
+      del.addEventListener('click', () => { if (confirm('Remove "' + (h.displayName || h.pokemon || 'this hunt') + '" from on-hold? Its count will be lost.')) fetch(base + '/api/removeHeld?id=' + encodeURIComponent(h.id), { method: 'POST' }); });
+      item.append(img, info, resume, del);
+      list.appendChild(item);
+    });
+  }
+
+  function renderCaught(caught) {
+    caught = caught || [];
+    $('caughtCount').textContent = '(' + caught.length + ')';
+    $('caughtEmpty').style.display = caught.length ? 'none' : 'block';
+    const sig = caught.map(c => c.id + ':' + c.count).join('|');
+    if (sig === caughtSig) return;
+    caughtSig = sig;
+    const list = $('caughtList');
+    list.innerHTML = '';
+    caught.forEach((c) => {
+      const item = document.createElement('div'); item.className = 'held-item';
+      const img = document.createElement('img'); img.className = 'held-sprite'; img.alt = '';
+      img.src = (cache[String(c.pokemon).toLowerCase()] || {}).shiny || POKEBALL;
+      if (c.pokemon) getEntry(c.pokemon).then((e) => { img.src = e.shiny || POKEBALL; }).catch(() => {});
+      const info = document.createElement('div'); info.className = 'held-info';
+      const nm = document.createElement('div'); nm.className = 'held-name'; nm.textContent = c.displayName || c.pokemon || '—';
+      const meta = document.createElement('div'); meta.className = 'held-meta';
+      meta.textContent = Number(c.count || 0).toLocaleString() + ' ' + heldLabel(c.method) + (c.game ? ' · ' + c.game : '');
+      info.append(nm, meta);
+      const del = document.createElement('button'); del.className = 'held-del'; del.textContent = '×'; del.title = 'Remove';
+      del.addEventListener('click', () => { if (confirm('Remove "' + (c.displayName || c.pokemon || 'this shiny') + '" from Previous Shinies?')) fetch(base + '/api/removeCaught?id=' + encodeURIComponent(c.id), { method: 'POST' }); });
+      item.append(img, info, del);
+      list.appendChild(item);
+    });
   }
 
   function render(s) {
@@ -378,7 +487,14 @@
 
     if (s.pokemon !== lastPokemon) { lastPokemon = s.pokemon; loadPokemon(s.pokemon); }
 
-    if (!formSeeded) {
+    renderHeld(s.held);
+    renderCaught(s.caught);
+
+    // Re-seed the form when the hunt config changes on the server (hold / resume / save),
+    // but NOT on plain count changes or while you're typing (server state doesn't change until Save).
+    const sig = [s.pokemon, s.displayName, s.gen, s.shinyCharm, s.masuda, s.customOdds, s.method, s.game].join('|');
+    if (sig !== lastFormSig) {
+      lastFormSig = sig;
       $('pokemon').value = s.pokemon || '';
       $('displayName').value = s.displayName || '';
       $('game').value = s.game || '';
@@ -391,7 +507,6 @@
         const o = document.createElement('option'); o.value = s.method; o.textContent = s.method; sel.insertBefore(o, sel.firstChild);
       }
       sel.value = s.method || 'Random Encounter';
-      formSeeded = true;
     }
   }
 
