@@ -77,7 +77,7 @@
   .mini-body { display:flex; align-items:center; gap:13px; padding:12px 15px 14px; }
   .mini-portrait { position:relative; width:96px; height:92px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
   .mini-disc { position:absolute; width:88px; height:88px; border-radius:50%; background:radial-gradient(circle at 50% 42%,var(--tint),var(--disc) 72%); border:2px solid var(--tintBorder); }
-  .mini-portrait img.sp { position:relative; z-index:1; width:92px; height:92px; object-fit:contain; image-rendering:pixelated; filter:drop-shadow(0 4px 5px rgba(0,0,0,.28)); }
+  .mini-portrait img.sp { position:relative; z-index:1; width:96px; height:96px; object-fit:contain; image-rendering:auto; filter:drop-shadow(0 4px 5px rgba(0,0,0,.28)); }
   .mini-charm { position:absolute; left:-2px; bottom:2px; z-index:2; width:30px; height:30px; object-fit:contain; display:none; filter:drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
   .mini.has-charm .mini-charm { display:block; }
   .mini-stats { flex:1 1 auto; min-width:0; }
@@ -110,7 +110,7 @@
   #heldCount, #caughtCount { color:var(--type1); }
   .held-list { display:flex; flex-direction:column; gap:9px; }
   .held-item { display:flex; align-items:center; gap:11px; background:var(--input); border:1px solid var(--line); border-radius:12px; padding:8px 10px; }
-  .held-sprite { width:46px; height:46px; object-fit:contain; image-rendering:pixelated; flex:0 0 auto; }
+  .held-sprite { width:48px; height:48px; object-fit:contain; image-rendering:auto; flex:0 0 auto; }
   .held-info { flex:1 1 auto; min-width:0; }
   .held-name { font-size:14px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .held-meta { font-size:11.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -390,9 +390,10 @@
     if (cache[key]) return cache[key];
     const r = await fetch('https://pokeapi.co/api/v2/pokemon/' + encodeURIComponent(key));
     const d = await r.json();
-    const g = d.sprites.versions?.['generation-v']?.['black-white']?.animated;
+    const home = d.sprites.other?.home || {};                       // Pokemon HOME renders (hi-res)
+    const art = d.sprites.other?.['official-artwork'] || {};
     const e = { id:d.id, types:(d.types||[]).map(t=>t.type.name),
-      shiny: g?.front_shiny || d.sprites.other?.['official-artwork']?.front_shiny || d.sprites.other?.home?.front_shiny || d.sprites.front_shiny || g?.front_default || POKEBALL };
+      shiny: home.front_shiny || art.front_shiny || d.sprites.front_shiny || home.front_default || POKEBALL };
     cache[key] = e;
     return e;
   }

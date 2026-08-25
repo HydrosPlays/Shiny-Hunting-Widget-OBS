@@ -102,8 +102,8 @@
     transition: background .5s ease, border-color .5s ease;
   }
   #sprite {
-    position: relative; z-index: 1; width: 122px; height: 122px;
-    object-fit: contain; image-rendering: pixelated;
+    position: relative; z-index: 1; width: 128px; height: 128px;
+    object-fit: contain; image-rendering: auto;
     filter: drop-shadow(0 5px 6px rgba(0,0,0,.28));
     animation: bob 2.4s ease-in-out infinite;
   }
@@ -188,7 +188,7 @@
   #shinies.hidden { display: none; }
   .shinies-head { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); padding: 8px 16px 2px; }
   .shiny-row { display: flex; align-items: center; gap: 11px; padding: 4px 16px 9px; }
-  .shiny-ico { width: 34px; height: 34px; object-fit: contain; image-rendering: pixelated; flex: 0 0 auto; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+  .shiny-ico { width: 38px; height: 38px; object-fit: contain; image-rendering: auto; flex: 0 0 auto; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
   .shiny-info { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 2px; overflow: hidden; }
   .shiny-name { font-size: 16px; font-weight: 700; color: var(--text); white-space: nowrap; }
   .shiny-game { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -338,11 +338,12 @@
     if (!r.ok) throw new Error('not found');
     const d = await r.json();
     const sp = d.sprites;
-    const g = sp.versions && sp.versions['generation-v'] && sp.versions['generation-v']['black-white'] && sp.versions['generation-v']['black-white'].animated;
+    const home = (sp.other && sp.other.home) || {};                 // Pokemon HOME renders (hi-res)
+    const art = (sp.other && sp.other['official-artwork']) || {};
     const entry = {
       id: d.id,
-      normal: (g && g.front_default) || (sp.other && sp.other['official-artwork'] && sp.other['official-artwork'].front_default) || sp.front_default || POKEBALL,
-      shiny:  (g && g.front_shiny) || (sp.other && sp.other['official-artwork'] && sp.other['official-artwork'].front_shiny) || (sp.other && sp.other.home && sp.other.home.front_shiny) || sp.front_shiny || (g && g.front_default) || POKEBALL,
+      normal: home.front_default || art.front_default || sp.front_default || POKEBALL,
+      shiny:  home.front_shiny || art.front_shiny || sp.front_shiny || home.front_default || POKEBALL,
       types: (d.types || []).map((t) => t.type.name),
     };
     cache[name] = entry;

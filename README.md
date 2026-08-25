@@ -1,7 +1,7 @@
 # ✨ Shiny Hunt Counter — OBS overlay + Stream Deck
 
 An animated, **Pokémon-themed** shiny-hunting counter for OBS. A modern Pokédex-style
-card that **auto-themes to your target's types**, shows the animated shiny sprite you're
+card that **auto-themes to your target's types**, shows the hi-res shiny sprite you're
 chasing, tracks live odds, and celebrates with sparkles when you find it. Juggle multiple
 hunts with **Hold/Resume**, and show off your catches in a **Previous Shinies** list.
 
