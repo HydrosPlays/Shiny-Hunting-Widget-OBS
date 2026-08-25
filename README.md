@@ -1,26 +1,36 @@
-# ✨ Shiny Hunt Counter — OBS overlay + Stream Deck
+# 🐚 Nacre — Pokémon Shiny Hunt Tracker & OBS Overlay
 
-An animated, **Pokémon-themed** shiny-hunting counter for OBS. A modern Pokédex-style
-card that **auto-themes to your target's types**, shows the hi-res shiny sprite you're
-chasing, tracks live odds, and celebrates with sparkles when you find it. Juggle multiple
-hunts with **Hold/Resume**, and show off your catches in a **Previous Shinies** list.
+Nacre turns the long grind of a shiny hunt into something you can put on stream —
+an animated, Pokémon-themed **OBS overlay** and a **Pokédex-style control panel**, driven
+by your **Stream Deck**. Like mother-of-pearl, every hunt builds layer by layer until you
+get the pearl. ✨
 
-Everything is driven from a **Pokédex-styled control panel** (or your phone) and your
-**Stream Deck** — the overlay updates **instantly** (live push, no refresh).
-
-Runs locally with **zero install** beyond Node.js. No accounts, no cloud, no `npm install`.
+The overlay updates **instantly** (live push, no refresh). Runs 100% locally with **zero
+dependencies** beyond Node.js — no accounts, no cloud, no `npm install`.
 
 ### Features
-- 🎴 Modern Pokémon menu-card overlay; **auto type-color theming**, Pokédex number, type badges.
+- 🎴 **Modern Pokédex-style overlay** — hi-res Pokémon HOME sprites, live **type-color theming**,
+  Pokédex number, and type badges that match whatever you're hunting.
 - 🌗 **Light & dark** overlay themes — toggle live from the panel (saved).
-- 🎯 Accurate shiny odds (**Full odds / Shiny Charm / Masuda**), shown as **% of odds** that
-  goes past 100% once you're "over odds."
+- 🎯 **Accurate shiny odds** (Full odds / Shiny Charm / Masuda), shown as **% of odds** that
+  passes 100% and turns gold once you're *over odds*.
 - 🔮 **Shiny Charm** icon indicator on the card.
-- 🧬 Phase tracking + a full **"found" celebration** (gold glow, ✦ SHINY! ribbon, sparkles).
+- 🧬 **Phase tracking** + a full **"found" celebration** (gold glow, ✦ SHINY! ribbon, sparkles).
 - ⏸ **Hold / Resume** any number of hunts without losing progress.
 - ✅ **Complete** a hunt → it lands in **Previous Shinies**; the latest one shows on the overlay.
 - 🕹 **Pokédex control panel** with its own ☀/🌙 light/dark switch (saved per device).
 - 📱 Works from your phone on the same network; 🎛 Stream Deck friendly.
+
+---
+
+## Requirements
+
+- **[Node.js](https://nodejs.org)** — **required** (any recent version). This is the only
+  install. Get the LTS build from <https://nodejs.org>, run the installer, done.
+  Check it's installed by opening a terminal and running `node --version`.
+- **Windows** (the included Stream Deck scripts are `.vbs`; the rest is cross-platform).
+- **Internet** — sprites load from PokéAPI.
+- **OBS** with a Browser Source. Stream Deck is optional.
 
 ---
 
@@ -193,6 +203,8 @@ held hunts, and previous shinies.
 
 ## Troubleshooting
 
+- **`start.bat` closes instantly / "node is not recognized"** — Node.js isn't installed (or
+  isn't on PATH). Install it from <https://nodejs.org> and reopen `start.bat`.
 - **Overlay is blank / "waiting for server"** — the `start.bat` window must stay open. Reopen it.
 - **New feature not working (Hold / Complete / theme / Latest Shiny box)** — restart the
   server (close `start.bat`, reopen). `server.js` changes only take effect on restart.
@@ -203,4 +215,4 @@ held hunts, and previous shinies.
   is correct. Test the URL in a browser first (it should return `{"ok":true,...}`).
 - **Port already in use** — see "Change the port" above.
 
-Happy hunting! ✨
+Happy hunting! 🐚✨
