@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shiny Hunt Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* type theme — updated live from the Pokemon you're hunting */
+    --type1: #6f35fc; --type2: #6f35fc;
+    --glow: rgba(111,53,252,.5);
+    --tint: rgba(111,53,252,.16);
+    --tintBorder: rgba(111,53,252,.40);
+    --type1soft: rgba(111,53,252,.14);
+
+    --edge:  #22273a;     /* card outline / dividers */
+    --text:  #22273a;     /* primary text (count, odds) */
+    --paper: #f5f7fd;     /* panel background */
+    --paper2:#e6eaf5;     /* bar track / insets */
+    --disc-center: #ffffff;
+    --muted: #6c7391;
+    --scale: 1;
+  }
+
+  /* Dark theme for OBS — add ?theme=dark to the browser-source URL */
+  body.theme-dark {
+    --edge:  #2c3352;
+    --text:  #eef1fb;
+    --paper: linear-gradient(180deg, #1c2133, #141726);
+    --paper2:#0f1220;
+    --disc-center: #12162a;
+    --muted: #99a1c6;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: transparent; overflow: hidden;
+    font-family: 'Bai Jamjuree', 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #stage { position: fixed; inset: 0; display: flex; padding: 24px; }
+  #stage.align-left    { justify-content: flex-start; align-items: flex-end; }
+  #stage.align-right   { justify-content: flex-end;   align-items: flex-end; }
+  #stage.align-center  { justify-content: center;     align-items: center; }
+  #stage.align-topleft { justify-content: flex-start; align-items: flex-start; }
+  #stage.align-topright{ justify-content: flex-end;   align-items: flex-start; }
+
+  #card {
+    position: relative;
+    width: 468px;
+    transform: scale(var(--scale));
+    transform-origin: bottom left;
+    border: 4px solid var(--edge);
+    border-radius: 28px;
+    overflow: hidden;
+    background: var(--paper);
+    box-shadow: 0 18px 44px rgba(0,0,0,.5), 0 2px 0 rgba(255,255,255,.4) inset;
+    transition: border-color .5s ease, box-shadow .5s ease;
+  }
+
+  /* ---------- Header (type-coloured, Pokedex-entry style) ---------- */
+  .header {
+    position: relative; display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 9px 20px 10px;
+    background: linear-gradient(135deg, var(--type1), var(--type2));
+    border-bottom: 3px solid var(--edge);
+    color: #fff; overflow: hidden;
+    transition: background .5s ease;
+  }
+  /* subtle diagonal gloss sweep across the header */
+  .header::after {
+    content: ""; position: absolute; top: 0; left: -40%; width: 30%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.22), transparent);
+    transform: skewX(-18deg); animation: sweep 7s ease-in-out infinite;
+  }
+  @keyframes sweep { 0%,72% { left:-40%; } 100% { left:130%; } }
+
+  .title { position: relative; z-index: 1; display: flex; flex-direction: column; }
+  .dexno { font-size: 12px; font-weight: 600; letter-spacing: 1px; opacity: .85; line-height: 1.1; }
+  #name  { font-size: 25px; font-weight: 700; line-height: 1.05; text-shadow: 0 2px 3px rgba(0,0,0,.32); }
+  #shinyTag {
+    display: none; position: relative; z-index: 1;
+    font-size: 13px; font-weight: 700; letter-spacing: 1.5px; color: #22273a;
+    background: linear-gradient(90deg,#ffe07a,#fff2c0,#ffe07a);
+    padding: 4px 12px; border-radius: 999px; border: 2px solid rgba(0,0,0,.15);
+    box-shadow: 0 0 14px rgba(255,224,122,.8);
+  }
+  #card.found #shinyTag { display: inline-block; animation: tagpop .5s ease; }
+
+  /* ---------- Body ---------- */
+  .body { display: flex; align-items: center; gap: 16px; padding: 15px 20px 17px; }
+
+  .portrait { position: relative; width: 132px; height: 120px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+  .disc {
+    position: absolute; width: 116px; height: 116px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 42%, var(--tint), var(--disc-center) 72%);
+    border: 2px solid var(--tintBorder);
+    box-shadow: inset 0 2px 10px rgba(0,0,0,.06);
+    transition: background .5s ease, border-color .5s ease;
+  }
+  #sprite {
+    position: relative; z-index: 1; width: 122px; height: 122px;
+    object-fit: contain; image-rendering: pixelated;
+    filter: drop-shadow(0 5px 6px rgba(0,0,0,.28));
+    animation: bob 2.4s ease-in-out infinite;
+  }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+
+  /* Shiny Charm indicator (shown only when the charm is enabled) */
+  .charm {
+    position: absolute; left: 0; bottom: 4px; z-index: 4;
+    width: 40px; height: 40px; object-fit: contain; display: none;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.55));
+    animation: charmFloat 3s ease-in-out infinite;
+  }
+  #card.has-charm .charm { display: block; }
+  @keyframes charmFloat { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-4px) rotate(4deg); } }
+
+  .stats { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+
+  .badges { display: flex; gap: 6px; }
+  .type-badge {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+    color: #fff; padding: 3px 12px; border-radius: 9px;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.18), 0 1px 2px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.35);
+    text-shadow: 0 1px 1px rgba(0,0,0,.3);
+  }
+
+  #method { font-size: 14px; font-weight: 600; color: var(--muted); }
+
+  .count-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+  #count {
+    font-size: 48px; font-weight: 700; line-height: .96; color: var(--text);
+    font-variant-numeric: tabular-nums; letter-spacing: -.5px;
+  }
+  #count.pop { animation: pop .3s cubic-bezier(.2,1.7,.4,1); transform-origin: left center; }
+  @keyframes pop { 0% { transform: scale(1); } 45% { transform: scale(1.16); } 100% { transform: scale(1); } }
+
+  .bar {
+    position: relative; margin-top: 6px; height: 13px; border-radius: 999px;
+    background: var(--paper2); border: 1px solid rgba(0,0,0,.10);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,.14); overflow: hidden;
+  }
+  #barFill {
+    height: 100%; width: 0%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--type2), var(--type1));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -3px 4px rgba(0,0,0,.12);
+    transition: width .5s ease;
+  }
+  .oddsline { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; font-weight: 600; color: var(--muted); margin-top: 3px; }
+  .oddsline b { color: var(--text); font-weight: 700; }
+  /* Over odds — count has passed the average: gold bar + gold label */
+  #card.over-odds #barFill { background: linear-gradient(90deg, #f4b52c, #ffe07a); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 10px rgba(255,208,71,.5); }
+  #card.over-odds #prob { color: #f0b429; font-weight: 700; letter-spacing: .3px; }
+
+  #phasePill {
+    align-self: flex-start; margin-top: 3px; font-size: 11px; font-weight: 700; letter-spacing: .3px;
+    padding: 3px 11px; border-radius: 999px; color: var(--text);
+    background: var(--type1soft); border: 1.5px solid var(--tintBorder);
+  }
+  #phasePill.hidden { display: none; }
+
+  /* ---------- Shiny found ---------- */
+  #card.found { border-color: #e0a92a; box-shadow: 0 0 0 3px #ffd447, 0 18px 44px rgba(0,0,0,.5), 0 0 46px rgba(255,212,71,.6); animation: foundPulse 1.5s ease-in-out infinite; }
+  @keyframes foundPulse {
+    0%,100% { box-shadow: 0 0 0 3px #ffd447, 0 18px 44px rgba(0,0,0,.5), 0 0 30px rgba(255,212,71,.5); }
+    50%     { box-shadow: 0 0 0 3px #ffd447, 0 18px 44px rgba(0,0,0,.5), 0 0 60px rgba(255,212,71,.85); }
+  }
+  #card.found .header { background: linear-gradient(135deg,#f2ab2e,#ffd447,#f2ab2e); }
+  #card.found .disc { background: radial-gradient(circle at 50% 42%, rgba(255,212,71,.5), var(--disc-center) 72%); border-color: #f0c645; }
+  #card.found #sprite { animation: bob 1.2s ease-in-out infinite, shinyGlow 1.3s ease-in-out infinite; }
+  @keyframes shinyGlow { 0%,100% { filter: drop-shadow(0 0 3px #fff3c4); } 50% { filter: drop-shadow(0 0 14px #ffdf6e); } }
+  @keyframes tagpop { 0% { transform: scale(.8); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+
+  #sparkles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .spark { position: absolute; animation: floatUp linear forwards; will-change: transform, opacity; }
+  @keyframes floatUp {
+    0% { transform: translateY(0) scale(.5) rotate(0deg); opacity: 0; }
+    15% { opacity: 1; }
+    100% { transform: translateY(-175px) scale(1.15) rotate(160deg); opacity: 0; }
+  }
+
+  #conn { position: fixed; top: 8px; right: 10px; font-size: 11px; color: #ff6b6b; background: rgba(0,0,0,.55); padding: 3px 8px; border-radius: 6px; display: none; }
+</style>
+</head>
+<body>
+  <div id="conn">⚠ waiting for server…</div>
+
+  <div id="stage" class="align-left">
+    <div id="card">
+      <div class="header">
+        <div class="title">
+          <span class="dexno" id="dexno">No. 0000</span>
+          <span id="name">—</span>
+        </div>
+        <span id="shinyTag">✦ SHINY!</span>
+        <div class="badges" id="types"></div>
+      </div>
+      <div class="body">
+        <div class="portrait">
+          <div class="disc"></div>
+          <img id="sprite" alt="" />
+          <img id="charm" class="charm" alt="Shiny Charm" title="Shiny Charm active" />
+        </div>
+        <div class="stats">
+          <div id="method">—</div>
+          <div class="count-label" id="countLabel">ENCOUNTERS</div>
+          <div id="count">0</div>
+          <div class="bar"><div id="barFill"></div></div>
+          <div class="oddsline"><span id="odds"></span><span id="prob"></span></div>
+          <span id="phasePill" class="hidden">Phase 0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="sparkles"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  const params = new URLSearchParams(location.search);
+  const base = params.get('server') || '';
+  const align = params.get('align') || 'left';
+  const scale = params.get('scale');
+  const showSprite = params.get('sprite') !== '0';
+  const showProb = params.get('prob') !== '0';
+  const showBar = params.get('bar') !== '0';
+  const revealMode = params.get('reveal') === '1';
+  const themeOverride = params.get('theme');          // 'dark'/'light' forces it; else follow control panel
+  const statMode = params.get('stat') === 'chance' ? 'chance' : 'odds';  // 'odds' = % of odds (can exceed 100%)
+
+  const stage = document.getElementById('stage');
+  stage.className = 'align-' + align;
+  if (themeOverride) document.body.classList.toggle('theme-dark', themeOverride === 'dark');
+  if (scale) document.documentElement.style.setProperty('--scale', scale);
+  if (!showSprite) document.querySelector('.portrait').style.display = 'none';
+  if (!showProb) document.querySelector('.oddsline').style.display = 'none';
+  if (!showBar) document.querySelector('.bar').style.display = 'none';
+
+  const el = {
+    dexno: document.getElementById('dexno'),
+    name: document.getElementById('name'),
+    types: document.getElementById('types'),
+    countLabel: document.getElementById('countLabel'),
+    count: document.getElementById('count'),
+    method: document.getElementById('method'),
+    odds: document.getElementById('odds'),
+    prob: document.getElementById('prob'),
+    barFill: document.getElementById('barFill'),
+    sprite: document.getElementById('sprite'),
+    phasePill: document.getElementById('phasePill'),
+    charm: document.getElementById('charm'),
+    card: document.getElementById('card'),
+    conn: document.getElementById('conn'),
+  };
+  el.charm.src = base + '/Bag_Shiny_Charm_SV_Sprite.png';
+
+  const TYPE_COLORS = {
+    normal:'#a8a77a', fire:'#ee8130', water:'#6390f0', electric:'#f7d02c',
+    grass:'#7ac74c', ice:'#96d9d6', fighting:'#c22e28', poison:'#a33ea1',
+    ground:'#e2bf65', flying:'#a98ff3', psychic:'#f95587', bug:'#a6b91a',
+    rock:'#b6a136', ghost:'#735797', dragon:'#6f35fc', dark:'#705746',
+    steel:'#b7b7ce', fairy:'#d685ad'
+  };
+
+  const POKEBALL = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">' +
+    '<circle cx="48" cy="48" r="44" fill="#f5f5f5" stroke="#111" stroke-width="4"/>' +
+    '<path d="M4 48a44 44 0 0 1 88 0z" fill="#ee2b3b" stroke="#111" stroke-width="4"/>' +
+    '<rect x="4" y="44" width="88" height="8" fill="#111"/>' +
+    '<circle cx="48" cy="48" r="13" fill="#fff" stroke="#111" stroke-width="4"/></svg>');
+
+  let lastCount = null, lastKey = null, lastFound = false;
+  const cache = {};
+
+  function hexToRgba(hex, a) {
+    const h = hex.replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+  function counterLabel(method) {
+    const m = (method || '').toLowerCase();
+    if (m.includes('reset')) return 'SOFT RESETS';
+    if (m.includes('egg') || m.includes('hatch') || m.includes('masuda')) return 'EGGS';
+    if (m.includes('sos') || m.includes('chain')) return 'CHAIN';
+    return 'ENCOUNTERS';
+  }
+
+  function applyTheme(types) {
+    const t1 = TYPE_COLORS[types[0]] || '#6f35fc';
+    const t2 = TYPE_COLORS[types[1]] || t1;
+    const r = document.documentElement.style;
+    r.setProperty('--type1', t1);
+    r.setProperty('--type2', t2);
+    r.setProperty('--glow', hexToRgba(t1, .5));
+    r.setProperty('--tint', hexToRgba(t1, .16));
+    r.setProperty('--tintBorder', hexToRgba(t1, .40));
+    r.setProperty('--type1soft', hexToRgba(t1, .14));
+    el.types.innerHTML = '';
+    types.forEach((tn) => {
+      const b = document.createElement('span');
+      b.className = 'type-badge';
+      b.textContent = tn;
+      b.style.background = TYPE_COLORS[tn] || '#888';
+      el.types.appendChild(b);
+    });
+  }
+
+  async function fetchPokemon(name) {
+    if (cache[name]) return cache[name];
+    const r = await fetch('https://pokeapi.co/api/v2/pokemon/' + encodeURIComponent(String(name).toLowerCase()));
+    if (!r.ok) throw new Error('not found');
+    const d = await r.json();
+    const sp = d.sprites;
+    const g = sp.versions && sp.versions['generation-v'] && sp.versions['generation-v']['black-white'] && sp.versions['generation-v']['black-white'].animated;
+    const entry = {
+      id: d.id,
+      normal: (g && g.front_default) || (sp.other && sp.other['official-artwork'] && sp.other['official-artwork'].front_default) || sp.front_default || POKEBALL,
+      shiny:  (g && g.front_shiny) || (sp.other && sp.other['official-artwork'] && sp.other['official-artwork'].front_shiny) || (sp.other && sp.other.home && sp.other.home.front_shiny) || sp.front_shiny || (g && g.front_default) || POKEBALL,
+      types: (d.types || []).map((t) => t.type.name),
+    };
+    cache[name] = entry;
+    return entry;
+  }
+
+  async function applyPokemon(pokemon, wantShiny) {
+    if (!pokemon) { el.sprite.src = POKEBALL; el.dexno.textContent = ''; applyTheme([]); return; }
+    try {
+      const e = await fetchPokemon(pokemon);
+      el.sprite.src = wantShiny ? e.shiny : e.normal;
+      el.dexno.textContent = 'No. ' + String(e.id).padStart(4, '0');
+      applyTheme(e.types);
+    } catch (_) { el.sprite.src = POKEBALL; el.dexno.textContent = ''; applyTheme([]); }
+  }
+
+  function render(s) {
+    if (!themeOverride) document.body.classList.toggle('theme-dark', s.theme === 'dark');
+    el.name.textContent = s.displayName || s.pokemon || '—';
+    el.method.textContent = s.method || '';
+    el.countLabel.textContent = counterLabel(s.method);
+
+    if (s.phases && s.phases > 0) {
+      el.phasePill.classList.remove('hidden');
+      el.phasePill.textContent = 'Phase ' + s.phases + ' · ' + s.phaseCount;
+    } else { el.phasePill.classList.add('hidden'); }
+
+    if (lastCount !== null && s.count !== lastCount) {
+      el.count.classList.remove('pop'); void el.count.offsetWidth; el.count.classList.add('pop');
+    }
+    el.count.textContent = s.count.toLocaleString();
+    lastCount = s.count;
+
+    el.card.classList.toggle('has-charm', !!s.shinyCharm);
+
+    if (s.odds) {
+      el.odds.innerHTML = 'Odds <b>1/' + s.odds.denominator.toLocaleString() + '</b>';
+      if (statMode === 'chance') {
+        // cumulative probability: % chance you'd have found one by now (caps near 100%)
+        const cp = s.odds.probability * 100;
+        el.prob.textContent = (cp > 0 && cp < 0.1 ? cp.toFixed(2) : cp.toFixed(1)) + '% chance by now';
+        el.barFill.style.width = Math.min(100, cp).toFixed(1) + '%';
+        el.card.classList.remove('over-odds');
+      } else {
+        // % of odds: count / odds denominator — 100% at the average, exceeds it when "over odds"
+        const prog = s.odds.denominator > 0 ? s.count / s.odds.denominator : 0;
+        const pct = prog * 100;
+        el.barFill.style.width = Math.min(100, pct).toFixed(1) + '%';
+        const over = prog >= 1;
+        el.card.classList.toggle('over-odds', over);
+        el.prob.textContent = over ? ('OVER ODDS · ' + Math.round(pct) + '%') : (Math.round(pct) + '% of odds');
+      }
+    }
+
+    if (s.found && !lastFound) { el.card.classList.add('found'); burst(); }
+    else if (!s.found && lastFound) { el.card.classList.remove('found'); }
+    lastFound = s.found;
+
+    const wantShiny = revealMode ? s.found : true;
+    const key = (s.pokemon || '') + '|' + (wantShiny ? 'shiny' : 'normal');
+    if (key !== lastKey) { lastKey = key; applyPokemon(s.pokemon, wantShiny); }
+  }
+
+  function burst() {
+    const layer = document.getElementById('sparkles');
+    const chars = ['✦', '✧', '⭐', '✨', '🌟'];
+    for (let i = 0; i < 26; i++) {
+      const s = document.createElement('div');
+      s.className = 'spark';
+      s.textContent = chars[i % chars.length];
+      s.style.color = i % 2 ? '#ffd447' : '#fff3b0';
+      s.style.left = (6 + Math.random() * 46) + '%';
+      s.style.bottom = (8 + Math.random() * 40) + '%';
+      s.style.fontSize = (14 + Math.random() * 22) + 'px';
+      s.style.animationDuration = (1.2 + Math.random() * 1.4) + 's';
+      s.style.animationDelay = (Math.random() * 0.5) + 's';
+      layer.appendChild(s);
+      setTimeout(() => s.remove(), 3200);
+    }
+  }
+
+  let es = null, pollTimer = null;
+  function connect() {
+    try {
+      es = new EventSource(base + '/api/events');
+      es.onopen = () => { el.conn.style.display = 'none'; stopPolling(); };
+      es.onmessage = (ev) => { try { render(JSON.parse(ev.data)); } catch (_) {} };
+      es.onerror = () => { el.conn.style.display = 'block'; startPolling(); };
+    } catch (_) { startPolling(); }
+  }
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(async () => {
+      try { const r = await fetch(base + '/api/state', { cache: 'no-store' }); if (r.ok) { render(await r.json()); el.conn.style.display = 'none'; } }
+      catch (_) { el.conn.style.display = 'block'; }
+    }, 1500);
+  }
+  function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  connect();
+})();
+</script>
+</body>
+</html>

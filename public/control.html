@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shiny Hunt — Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== Pokédex control panel — dark by default, light via the switch ===== */
+  :root {
+    --accent:#e23b31; --accent2:#ff5a4e;   /* Pokédex red */
+    --green:#37b26b; --blue:#3f6fd6; --gold:#f4b52c;
+    /* live type accent from the Pokémon */
+    --type1:#6f35fc; --type2:#6f35fc; --tint:rgba(111,53,252,.16); --tintBorder:rgba(111,53,252,.4);
+  }
+  body.cp-dark {
+    --page:#080a12; --case:linear-gradient(180deg,#1b1f30,#141726); --case-edge:#0a0c16;
+    --screen:#121524; --screen-edge:rgba(255,255,255,.08);
+    --text:#eef1fb; --muted:#99a1c6; --input:#1e2236; --line:rgba(255,255,255,.12);
+  }
+  body.cp-light {
+    --page:#e8ebf2; --case:linear-gradient(180deg,#e6e9f1,#d6dae6); --case-edge:#b9bfd0;
+    --screen:#f7f8fb; --screen-edge:rgba(0,0,0,.10);
+    --text:#20263a; --muted:#5f6788; --input:#ffffff; --line:rgba(0,0,0,.14);
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; min-height:100vh; padding:26px 16px 46px;
+    font-family:'Bai Jamjuree','Segoe UI',sans-serif; color:var(--text);
+    background:var(--page); transition:background .25s;
+  }
+  .dex {
+    max-width:640px; margin:0 auto; border-radius:26px; overflow:hidden;
+    background:var(--case); border:1px solid var(--case-edge);
+    box-shadow:0 22px 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+
+  /* ---- Pokédex top bar (lens + LEDs + title) ---- */
+  .dex-top { display:flex; align-items:center; gap:14px; padding:16px 20px;
+    background:linear-gradient(180deg,var(--accent2),var(--accent)); border-bottom:4px solid var(--case-edge); color:#fff; }
+  .lens { width:54px; height:54px; border-radius:50%; flex:0 0 auto; position:relative;
+    background:radial-gradient(circle at 34% 30%, #d5ecff, #3aa0ff 46%, #1b6fd0 74%, #0d4c9c);
+    border:4px solid #f0f4ff; box-shadow:0 0 0 3px rgba(0,0,0,.35), 0 3px 8px rgba(0,0,0,.4); }
+  .lens::after { content:""; position:absolute; left:24%; top:18%; width:28%; height:22%; border-radius:50%; background:rgba(255,255,255,.9); filter:blur(1px); }
+  .leds { display:flex; flex-direction:column; gap:6px; }
+  .led { width:12px; height:12px; border-radius:50%; box-shadow:inset 0 1px 1px rgba(255,255,255,.55), 0 0 6px currentColor; }
+  .led.r{ background:#ff5a5a; color:#ff5a5a; } .led.y{ background:#ffd23c; color:#ffd23c; } .led.g{ background:#57e88a; color:#57e88a; }
+  .dex-head { flex:1 1 auto; }
+  .dex-title { font-size:21px; font-weight:700; letter-spacing:.3px; text-shadow:0 2px 3px rgba(0,0,0,.35); }
+  .dex-sub { font-size:12px; opacity:.9; margin-top:1px; }
+  .cp-switch { display:flex; gap:3px; background:rgba(0,0,0,.22); border-radius:10px; padding:3px; }
+  .cp-switch button { font-family:inherit; font-size:15px; line-height:1; border:0; border-radius:8px; padding:7px 10px; cursor:pointer;
+    background:transparent; color:rgba(255,255,255,.7); transition:.15s; }
+  .cp-switch button.on { background:#fff; color:var(--accent); box-shadow:0 2px 6px rgba(0,0,0,.3); }
+
+  /* ---- Screens ---- */
+  .dex-body { padding:8px 14px 16px; }
+  .screen { background:var(--screen); border:1px solid var(--screen-edge); border-radius:15px; padding:15px 16px; margin-top:14px; }
+  .screen h2 { font-size:11.5px; text-transform:uppercase; letter-spacing:1.4px; color:var(--muted); margin:0 0 12px; display:flex; align-items:center; gap:8px; }
+  .screen h2::before { content:""; width:16px; height:3px; border-radius:2px; background:var(--accent); }
+
+  /* ---- Live overlay preview (mirrors the OBS card + its own theme) ---- */
+  .mini { --edge:#22273a; --mt:#22273a; --paper:#f5f7fd; --paper2:#e6eaf5; --disc:#fff; --mm:#6c7391;
+    position:relative; border:3px solid var(--edge); border-radius:18px; overflow:hidden; background:var(--paper); }
+  .mini.theme-dark { --edge:#2c3352; --mt:#eef1fb; --paper:linear-gradient(180deg,#1c2133,#141726); --paper2:#0f1220; --disc:#12162a; --mm:#99a1c6; }
+  .mini-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 15px 9px;
+    background:linear-gradient(135deg,var(--type1),var(--type2)); border-bottom:2px solid var(--edge); color:#fff; }
+  .mini-title { display:flex; flex-direction:column; line-height:1.1; }
+  .mini-dex { font-size:10px; font-weight:600; letter-spacing:.7px; opacity:.85; }
+  .mini-name { font-size:20px; font-weight:700; text-shadow:0 2px 3px rgba(0,0,0,.3); }
+  .mini-badges { display:flex; gap:5px; }
+  .badge { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#fff; padding:3px 10px; border-radius:8px;
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.22); text-shadow:0 1px 1px rgba(0,0,0,.3); }
+  .mini-body { display:flex; align-items:center; gap:13px; padding:12px 15px 14px; }
+  .mini-portrait { position:relative; width:96px; height:92px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
+  .mini-disc { position:absolute; width:88px; height:88px; border-radius:50%; background:radial-gradient(circle at 50% 42%,var(--tint),var(--disc) 72%); border:2px solid var(--tintBorder); }
+  .mini-portrait img.sp { position:relative; z-index:1; width:92px; height:92px; object-fit:contain; image-rendering:pixelated; filter:drop-shadow(0 4px 5px rgba(0,0,0,.28)); }
+  .mini-charm { position:absolute; left:-2px; bottom:2px; z-index:2; width:30px; height:30px; object-fit:contain; display:none; filter:drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
+  .mini.has-charm .mini-charm { display:block; }
+  .mini-stats { flex:1 1 auto; min-width:0; }
+  .mini-method { font-size:13px; font-weight:600; color:var(--mm); }
+  .mini-clabel { font-size:9px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; color:var(--mm); margin-top:2px; }
+  .mini-count { font-size:34px; font-weight:700; line-height:.98; color:var(--mt); font-variant-numeric:tabular-nums; }
+  .mini-bar { position:relative; margin-top:5px; height:11px; border-radius:999px; background:var(--paper2); border:1px solid rgba(0,0,0,.1); overflow:hidden; }
+  .mini-bar > i { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--type2),var(--type1)); box-shadow:inset 0 1px 0 rgba(255,255,255,.4); }
+  .mini-odds { display:flex; justify-content:space-between; font-size:11.5px; font-weight:600; color:var(--mm); margin-top:3px; }
+  .mini-odds b { color:var(--mt); }
+  .mini.over-odds .mini-bar > i { background:linear-gradient(90deg,#f4b52c,#ffe07a); }
+  .mini.over-odds #prob { color:#f0b429; font-weight:700; }
+
+  .themebar { display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+  .themebar > span { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; font-weight:600; }
+  .seg { display:flex; background:var(--input); border:1px solid var(--line); border-radius:11px; padding:3px; gap:3px; }
+  .seg button { font-family:inherit; font-size:13px; font-weight:600; color:var(--muted); background:transparent; border:0; border-radius:8px; padding:7px 14px; cursor:pointer; transition:.15s; }
+  .seg button.on { background:var(--type1); color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.35); }
+
+  /* ---- Actions ---- */
+  .actions { display:grid; grid-template-columns:repeat(2,1fr); gap:11px; }
+  @media (min-width:560px){ .actions { grid-template-columns:repeat(4,1fr); } }
+  button.act { font-family:inherit; font-weight:700; font-size:16px; cursor:pointer; color:#fff;
+    border:1px solid rgba(0,0,0,.2); border-radius:13px; padding:17px 10px; transition:transform .06s, filter .15s; }
+  button.act:active { transform:translateY(2px) scale(.98); }
+  button.act .k { display:block; font-size:10.5px; color:rgba(255,255,255,.8); margin-top:6px; font-weight:500; }
+  .btn-inc { grid-column:span 2; background:linear-gradient(180deg,#37b26b,#248a4f); border-color:#3fbf74; font-size:20px; }
+  .btn-dec { background:linear-gradient(180deg,#4a5170,#3a405c); }
+  .btn-phase { background:linear-gradient(180deg,#3f6fd6,#2f57ad); }
+  .btn-found { background:linear-gradient(180deg,#e0a52a,#b9831a); }
+  .btn-reset { background:linear-gradient(180deg,#d8433a,#ad2f28); }
+
+  /* ---- Form ---- */
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:520px){ .grid { grid-template-columns:1fr; } }
+  label { display:block; font-size:11.5px; color:var(--muted); margin-bottom:5px; font-weight:600; }
+  input[type=text], input[type=number], select {
+    width:100%; padding:11px 12px; border-radius:10px; font-family:inherit; font-size:14px; color:var(--text);
+    background:var(--input); border:1px solid var(--line); appearance:none; -webkit-appearance:none;
+  }
+  input:focus, select:focus { outline:none; border-color:var(--type1); box-shadow:0 0 0 3px var(--tint); }
+  select { background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%; background-size:5px 5px,5px 5px; background-repeat:no-repeat; padding-right:34px; cursor:pointer; }
+  select option { background:var(--input); color:var(--text); }
+  .row-check { display:flex; gap:20px; align-items:center; margin-top:12px; flex-wrap:wrap; }
+  .row-check label { display:flex; align-items:center; gap:8px; margin:0; color:var(--text); font-size:14px; cursor:pointer; }
+  input[type=checkbox]{ width:18px; height:18px; accent-color:var(--type1); cursor:pointer; }
+  .save { margin-top:15px; width:100%; font-family:inherit; font-weight:700; font-size:15px; color:#fff; cursor:pointer;
+    background:linear-gradient(180deg,var(--accent2),var(--accent)); border:1px solid var(--accent2); border-radius:12px; padding:14px; transition:transform .06s; }
+  .save:active { transform:translateY(2px); }
+
+  .status { font-size:12px; color:var(--green); height:16px; margin-top:8px; font-weight:600; }
+  .hint { font-size:12.5px; color:var(--muted); line-height:1.6; }
+  code { background:var(--input); padding:2px 7px; border-radius:6px; color:var(--blue); font-size:12px; border:1px solid var(--line); }
+</style>
+</head>
+<body class="cp-dark">
+  <div class="dex">
+    <div class="dex-top">
+      <div class="lens"></div>
+      <div class="leds"><i class="led r"></i><i class="led y"></i><i class="led g"></i></div>
+      <div class="dex-head">
+        <div class="dex-title">Shiny Hunt Control</div>
+        <div class="dex-sub">Mirrors your Stream Deck · control from a 2nd monitor or phone</div>
+      </div>
+      <div class="cp-switch">
+        <button data-cp="light" title="Light panel">☀</button>
+        <button data-cp="dark" title="Dark panel">🌙</button>
+      </div>
+    </div>
+
+    <div class="dex-body">
+      <!-- Live preview of the OBS overlay -->
+      <section class="screen">
+        <h2>Live overlay preview</h2>
+        <div class="mini" id="mini">
+          <div class="mini-head">
+            <div class="mini-title"><span class="mini-dex" id="dexno">No. 0000</span><span class="mini-name" id="name">—</span></div>
+            <div class="mini-badges" id="types"></div>
+          </div>
+          <div class="mini-body">
+            <div class="mini-portrait"><div class="mini-disc"></div><img class="sp" id="sprite" alt=""><img class="mini-charm" id="miniCharm" alt="Shiny Charm"></div>
+            <div class="mini-stats">
+              <div class="mini-method" id="methodOut">—</div>
+              <div class="mini-clabel" id="countLabel">Encounters</div>
+              <div class="mini-count" id="count">0</div>
+              <div class="mini-bar"><i id="barFill"></i></div>
+              <div class="mini-odds"><span id="odds"></span><span id="prob"></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="themebar">
+          <span>Overlay theme</span>
+          <div class="seg">
+            <button data-theme="light" id="tLight">☀ Light</button>
+            <button data-theme="dark" id="tDark">🌙 Dark</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <section class="screen">
+        <h2>Actions</h2>
+        <div class="actions">
+          <button class="act btn-inc" data-act="increment">+1<span class="k">Count / Encounter · [Space]</span></button>
+          <button class="act btn-dec" data-act="decrement">−1<span class="k">Undo · [Backspace]</span></button>
+          <button class="act btn-phase" data-act="phase">Phase<span class="k">Wrong shiny · [P]</span></button>
+          <button class="act btn-found" data-act="toggleFound">★ Found<span class="k">Celebrate · [F]</span></button>
+          <button class="act btn-reset" data-act="reset">Reset<span class="k">Zero out · [R]</span></button>
+        </div>
+        <div class="status" id="status"></div>
+      </section>
+
+      <!-- Configure -->
+      <section class="screen">
+        <h2>Configure hunt</h2>
+        <div class="grid">
+          <div><label>Pokémon (name or Pokédex #)</label><input type="text" id="pokemon" placeholder="e.g. gible, 443, mr-mime" /></div>
+          <div><label>Display name (optional)</label><input type="text" id="displayName" placeholder="Gible" /></div>
+          <div>
+            <label>Method</label>
+            <select id="method">
+              <option>Random Encounter</option>
+              <option>Soft Reset</option>
+              <option>Masuda Method</option>
+              <option>Mass Outbreak</option>
+              <option>Sandwich / Encounter Power</option>
+              <option>Full Odds</option>
+              <option>Horde Encounter</option>
+              <option>SOS Chaining</option>
+              <option>Poké Radar</option>
+              <option>Chain Fishing</option>
+              <option>DexNav Search</option>
+              <option>Egg Hatching</option>
+              <option>Dynamax Adventure</option>
+              <option>Ultra Wormhole</option>
+              <option>Catch Combo</option>
+              <option>Gift / Static</option>
+            </select>
+          </div>
+          <div><label>Game (optional)</label><input type="text" id="game" placeholder="Scarlet / Violet" /></div>
+          <div>
+            <label>Generation</label>
+            <select id="gen">
+              <option value="1">Gen 1</option><option value="2">Gen 2</option>
+              <option value="3">Gen 3</option><option value="4">Gen 4</option>
+              <option value="5">Gen 5</option><option value="6">Gen 6</option>
+              <option value="7">Gen 7</option><option value="8" selected>Gen 8</option>
+              <option value="9">Gen 9</option>
+            </select>
+          </div>
+          <div><label>Custom odds denominator (optional, overrides)</label><input type="number" id="customOdds" placeholder="e.g. 512" min="1" /></div>
+        </div>
+        <div class="row-check">
+          <label><input type="checkbox" id="shinyCharm" /> Shiny Charm (+2 rolls)</label>
+          <label><input type="checkbox" id="masuda" /> Masuda (+5/6 rolls)</label>
+        </div>
+        <button class="save" id="save">Save hunt settings</button>
+        <div class="status" id="cfgStatus"></div>
+      </section>
+
+      <section class="screen">
+        <h2>OBS setup</h2>
+        <div class="hint">
+          Add a <b>Browser Source</b> in OBS with URL:<br>
+          <code id="obsUrl">http://localhost:3620/</code><br><br>
+          Suggested size <b>560 × 250</b>. The overlay's Light/Dark is the toggle above (saved, live).
+          The panel's own theme is the ☀/🌙 switch up top. URL tweaks:
+          <code>?align=right</code>, <code>?scale=1.3</code>, <code>?sprite=0</code>, <code>?reveal=1</code>.
+        </div>
+      </section>
+    </div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+  const base = new URLSearchParams(location.search).get('server') || '';
+  const $ = (id) => document.getElementById(id);
+  $('obsUrl').textContent = location.origin + '/';
+  $('miniCharm').src = base + '/Bag_Shiny_Charm_SV_Sprite.png';
+
+  // ----- Control-panel theme (saved locally, separate from the overlay) -----
+  const CP_KEY = 'shinyhunt.cpTheme';
+  function applyCpTheme(t) {
+    const light = t === 'light';
+    document.body.classList.toggle('cp-light', light);
+    document.body.classList.toggle('cp-dark', !light);
+    document.querySelectorAll('.cp-switch button').forEach((b) => b.classList.toggle('on', (b.dataset.cp === 'light') === light));
+  }
+  let cpTheme = 'dark';
+  try { cpTheme = localStorage.getItem(CP_KEY) || 'dark'; } catch (_) {}
+  applyCpTheme(cpTheme);
+  document.querySelectorAll('.cp-switch button').forEach((b) => b.addEventListener('click', () => {
+    cpTheme = b.dataset.cp; try { localStorage.setItem(CP_KEY, cpTheme); } catch (_) {}
+    applyCpTheme(cpTheme);
+  }));
+
+  const TYPE_COLORS = {
+    normal:'#a8a77a', fire:'#ee8130', water:'#6390f0', electric:'#f7d02c',
+    grass:'#7ac74c', ice:'#96d9d6', fighting:'#c22e28', poison:'#a33ea1',
+    ground:'#e2bf65', flying:'#a98ff3', psychic:'#f95587', bug:'#a6b91a',
+    rock:'#b6a136', ghost:'#735797', dragon:'#6f35fc', dark:'#705746',
+    steel:'#b7b7ce', fairy:'#d685ad'
+  };
+  const POKEBALL = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="44" fill="#f5f5f5" stroke="#111" stroke-width="4"/><path d="M4 48a44 44 0 0 1 88 0z" fill="#ee2b3b" stroke="#111" stroke-width="4"/><rect x="4" y="44" width="88" height="8" fill="#111"/><circle cx="48" cy="48" r="13" fill="#fff" stroke="#111" stroke-width="4"/></svg>');
+
+  let lastPokemon = null, formSeeded = false;
+  const cache = {};
+
+  function hexToRgba(hex, a) {
+    const h = hex.replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
+  }
+  function flash(id, msg, ok = true) {
+    const e = $(id); e.textContent = msg; e.style.color = ok ? 'var(--green)' : 'var(--accent2)';
+    setTimeout(() => { if (e.textContent === msg) e.textContent = ''; }, 1800);
+  }
+  async function act(action) {
+    try { const r = await fetch(base + '/api/' + action, { method:'POST' }); if (r.ok) flash('status', action + ' ✓'); }
+    catch (_) { flash('status', 'server offline', false); }
+  }
+  document.querySelectorAll('button[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
+
+  // overlay theme toggle -> server state (saved)
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', async () => {
+    try { await fetch(base + '/api/config?theme=' + b.dataset.theme, { method:'POST' }); } catch (_) {}
+  }));
+
+  document.addEventListener('keydown', (e) => {
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+    const map = { ' ':'increment', 'Backspace':'decrement', 'p':'phase', 'f':'toggleFound', 'r':'reset' };
+    const a = map[e.key] || map[(e.key || '').toLowerCase()];
+    if (a) { e.preventDefault(); act(a); }
+  });
+
+  $('save').addEventListener('click', async () => {
+    const q = new URLSearchParams({
+      pokemon:$('pokemon').value.trim(), displayName:$('displayName').value.trim(),
+      method:$('method').value, game:$('game').value.trim(), gen:$('gen').value,
+      customOdds:$('customOdds').value.trim(),
+      shinyCharm:$('shinyCharm').checked ? '1':'0', masuda:$('masuda').checked ? '1':'0',
+    });
+    try { const r = await fetch(base + '/api/config?' + q.toString(), { method:'POST' }); if (r.ok) flash('cfgStatus', 'Saved ✓'); }
+    catch (_) { flash('cfgStatus', 'server offline', false); }
+  });
+
+  function applyType(types) {
+    const t1 = TYPE_COLORS[types[0]] || '#6f35fc';
+    const t2 = TYPE_COLORS[types[1]] || t1;
+    const r = document.documentElement.style;
+    r.setProperty('--type1', t1); r.setProperty('--type2', t2);
+    r.setProperty('--tint', hexToRgba(t1, .16)); r.setProperty('--tintBorder', hexToRgba(t1, .4));
+    $('types').innerHTML = '';
+    types.forEach((tn) => { const b = document.createElement('span'); b.className='badge'; b.textContent=tn; b.style.background=TYPE_COLORS[tn]||'#888'; $('types').appendChild(b); });
+  }
+
+  async function loadPokemon(pokemon) {
+    if (!pokemon) { $('sprite').src = POKEBALL; $('dexno').textContent=''; applyType([]); return; }
+    try {
+      let e = cache[pokemon];
+      if (!e) {
+        const r = await fetch('https://pokeapi.co/api/v2/pokemon/' + encodeURIComponent(String(pokemon).toLowerCase()));
+        const d = await r.json();
+        const g = d.sprites.versions?.['generation-v']?.['black-white']?.animated;
+        e = { id:d.id, types:(d.types||[]).map(t=>t.type.name),
+          shiny: g?.front_shiny || d.sprites.other?.['official-artwork']?.front_shiny || d.sprites.other?.home?.front_shiny || d.sprites.front_shiny || g?.front_default };
+        cache[pokemon] = e;
+      }
+      $('sprite').src = e.shiny || POKEBALL;
+      $('dexno').textContent = 'No. ' + String(e.id).padStart(4,'0');
+      applyType(e.types);
+    } catch (_) { $('sprite').src = POKEBALL; $('dexno').textContent=''; applyType([]); }
+  }
+
+  function render(s) {
+    $('count').textContent = s.count.toLocaleString();
+    $('name').textContent = s.displayName || s.pokemon || '—';
+    $('methodOut').textContent = s.method || '';
+    const m = (s.method||'').toLowerCase();
+    $('countLabel').textContent = m.includes('reset') ? 'Soft Resets' : (m.includes('egg')||m.includes('masuda')||m.includes('hatch')) ? 'Eggs' : (m.includes('sos')||m.includes('chain')) ? 'Chain' : 'Encounters';
+    if (s.odds) {
+      $('odds').innerHTML = 'Odds <b>1/' + s.odds.denominator.toLocaleString() + '</b>';
+      const prog = s.odds.denominator > 0 ? s.count / s.odds.denominator : 0;
+      const pct = prog * 100;
+      $('barFill').style.width = Math.min(100, pct).toFixed(1) + '%';
+      $('prob').textContent = prog >= 1 ? ('over odds · ' + Math.round(pct) + '%') : (Math.round(pct) + '% of odds');
+      $('mini').classList.toggle('over-odds', prog >= 1);
+    }
+    $('mini').classList.toggle('has-charm', !!s.shinyCharm);
+
+    const dark = s.theme === 'dark';
+    $('mini').classList.toggle('theme-dark', dark);
+    $('tLight').classList.toggle('on', !dark);
+    $('tDark').classList.toggle('on', dark);
+
+    if (s.pokemon !== lastPokemon) { lastPokemon = s.pokemon; loadPokemon(s.pokemon); }
+
+    if (!formSeeded) {
+      $('pokemon').value = s.pokemon || '';
+      $('displayName').value = s.displayName || '';
+      $('game').value = s.game || '';
+      $('gen').value = String(s.gen || 8);
+      $('customOdds').value = s.customOdds || '';
+      $('shinyCharm').checked = !!s.shinyCharm;
+      $('masuda').checked = !!s.masuda;
+      const sel = $('method');
+      if (s.method && ![...sel.options].some(o => o.value === s.method)) {
+        const o = document.createElement('option'); o.value = s.method; o.textContent = s.method; sel.insertBefore(o, sel.firstChild);
+      }
+      sel.value = s.method || 'Random Encounter';
+      formSeeded = true;
+    }
+  }
+
+  try {
+    const es = new EventSource(base + '/api/events');
+    es.onmessage = (ev) => { try { render(JSON.parse(ev.data)); } catch (_) {} };
+  } catch (_) {
+    setInterval(async () => { try { const r = await fetch(base + '/api/state'); render(await r.json()); } catch (_) {} }, 1500);
+  }
+})();
+</script>
+</body>
+</html>

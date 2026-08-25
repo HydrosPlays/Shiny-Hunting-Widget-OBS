@@ -1,0 +1,10 @@
+{
+  "name": "shiny-hunt-counter",
+  "version": "1.0.0",
+  "description": "Animated OBS shiny hunting counter overlay with Stream Deck integration. Zero dependencies.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}

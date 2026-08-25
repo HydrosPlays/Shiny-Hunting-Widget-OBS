@@ -1,0 +1,17 @@
+{
+  "pokemon": "gible",
+  "displayName": "Gible",
+  "method": "Random Encounter",
+  "game": "",
+  "count": 0,
+  "phaseCount": 0,
+  "phases": 0,
+  "gen": 8,
+  "shinyCharm": false,
+  "masuda": false,
+  "customOdds": null,
+  "found": false,
+  "target": null,
+  "theme": "dark",
+  "updatedAt": 1787626376505
+}
